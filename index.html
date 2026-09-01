@@ -23,4 +23,36 @@
 </section>
 <section id="completeScreen" class="card hidden"><div class="success-icon">✓</div><h2>CBT Submitted</h2><p id="completionText"></p></section>
 </main></div>
-<script src="questions.js"></script><script src="app.js"></script></body></html>
+<script src="questions.js"></script><script src="app.js"></script>
+<script>
+/* Prefills the start form from the invitation link:
+   ?name=&email=&code=&role=  — sent by sendCandidateCode_ in Code.gs.
+   Runs after app.js so it does not fight anything app.js sets up. */
+(function(){
+  var p = new URLSearchParams(window.location.search);
+
+  function set(id, value){
+    if (!value) return;
+    var el = document.getElementById(id);
+    if (el) el.value = value;
+  }
+
+  set('candidateName',  p.get('name'));
+  set('candidateEmail', p.get('email'));
+  set('candidateCode',  p.get('code'));
+
+  var role = p.get('role'), sel = document.getElementById('candidateRole');
+  if (role && sel) {
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].text === role || sel.options[i].value === role) { sel.selectedIndex = i; break; }
+    }
+  }
+
+  /* Warn before an accidental refresh or tab close mid-test. */
+  window.addEventListener('beforeunload', function(e){
+    var t = document.getElementById('testScreen');
+    if (t && !t.classList.contains('hidden')) { e.preventDefault(); e.returnValue = ''; }
+  });
+})();
+</script>
+</body></html>
