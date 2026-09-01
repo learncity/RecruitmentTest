@@ -10,81 +10,29 @@
 <div class="shell">
   <header class="brand">
     <div class="crest">LC</div>
-    <div>
-      <div class="eyebrow">LEARN CITY MODEL SCHOOLS & LEARN CITY ACADEMY</div>
-      <h1>Recruitment CBT</h1>
-      <div class="motto">Deus! Genus! Comperio</div>
-    </div>
+    <div><div class="eyebrow">LEARN CITY MODEL SCHOOLS & LEARN CITY ACADEMY</div><h1>Recruitment CBT</h1><div class="motto">Deus! Genus! Comperio</div></div>
   </header>
-
   <main>
     <section id="startScreen" class="card">
       <h2>Computer-Based Test</h2>
       <p>Enter the details exactly as supplied with your CBT invitation.</p>
-
-      <label>Full name
-        <input id="candidateName" autocomplete="name" placeholder="Full name">
-      </label>
-
-      <label>Email used for your application
-        <input id="candidateEmail" type="email" autocomplete="email" placeholder="Email address">
-      </label>
-
-      <label>CBT access code
-        <input id="candidateCode" inputmode="numeric" maxlength="6" placeholder="6-digit code">
-      </label>
-
-      <label>Position
-        <select id="candidateRole">
-          <option value="">Select position</option>
-          <option value="Primary 3 Teacher">Primary 3 Teacher</option>
-          <option value="ICT Teacher">ICT Teacher</option>
-          <option value="Office Assistant">Office Assistant</option>
-        </select>
-      </label>
-
-      <div class="notice">
-        <strong>50 questions</strong> will be selected randomly from a bank of 70 questions for your position.
-        Questions and answer choices are also shuffled.
-      </div>
-
+      <label>Full name<input id="candidateName" autocomplete="name" placeholder="Full name"></label>
+      <label>Email used for your application<input id="candidateEmail" type="email" autocomplete="email" placeholder="Email address"></label>
+      <label>CBT access code<input id="candidateCode" inputmode="numeric" maxlength="6" placeholder="6-digit code"></label>
+      <label>Position<select id="candidateRole"><option value="">Select position</option><option value="Primary 3 Teacher">Primary 3 Teacher</option><option value="ICT Teacher">ICT Teacher</option><option value="Office Assistant">Office Assistant</option></select></label>
+      <div class="notice"><strong>50 questions</strong> to be answered in <strong>60 minutes</strong>.<br>This is a role-specific recruitment assessment. Answer all questions carefully and submit before the time expires.</div>
       <button id="startBtn" class="primary">Start CBT</button>
       <p id="startError" class="error"></p>
+      <p class="small"><a href="admin.html">Administrator access</a></p>
     </section>
-
     <section id="testScreen" class="hidden">
-      <div class="testbar">
-        <div><strong id="roleDisplay"></strong><span id="progress"></span></div>
-        <div class="timer" id="timer">60:00</div>
-      </div>
-
-      <div class="card">
-        <div class="qmeta" id="questionNumber"></div>
-        <h2 id="questionText"></h2>
-        <div id="options" class="options"></div>
-
-        <div class="nav">
-          <button id="prevBtn" class="secondary">Previous</button>
-          <button id="nextBtn" class="primary">Next</button>
-        </div>
-      </div>
-
-      <div class="card palette">
-        <div class="palette-title">Question navigation</div>
-        <div id="questionPalette"></div>
-      </div>
+      <div class="testbar"><div><strong id="roleDisplay"></strong><span id="progress"></span></div><div class="timer" id="timer">60:00</div></div>
+      <div class="card"><div class="qmeta" id="questionNumber"></div><h2 id="questionText"></h2><div id="options" class="options"></div><div class="nav"><button id="prevBtn" class="secondary">Previous</button><button id="nextBtn" class="primary">Next</button></div></div>
+      <div class="card palette"><div class="palette-title">Question navigation</div><div id="questionPalette"></div></div>
     </section>
-
-    <section id="completeScreen" class="card hidden">
-      <div class="success-icon">✓</div>
-      <h2>CBT Submitted</h2>
-      <p id="completionText"></p>
-      <p class="small">Your result has been recorded. Please follow the recruitment team's instructions regarding the next stage.</p>
-    </section>
+    <section id="completeScreen" class="card hidden"><div class="success-icon">✓</div><h2>CBT Submitted</h2><p id="completionText"></p><p class="small">Your result has been recorded. Please follow the recruitment team's instructions regarding the next stage.</p></section>
   </main>
 </div>
-
-<script src="questions.js"></script>
-<script src="app.js"></script>
+<script src="questions.js"></script><script src="app.js"></script>
 </body>
 </html>
