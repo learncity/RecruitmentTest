@@ -1,4 +1,4 @@
-const RESULT_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyOsnfvzDlbRNXpWzbNNEdDR0cRfL7F_C8E0ZPlv-Cd3EKIDnQ0zQGOqe1uX9LP_yBW/exec';
+const RESULT_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwMIPzjkKrrsDqxQvXsmWY3jJYrBs4TjBikBKF9y_M5Sa0eyn8bIca_fghA3Xk-Zqlz/exec';
 const QUESTIONS_PER_TEST = 50;
 const TEST_MINUTES = 60;
 let state={name:'',email:'',code:'',role:'',questions:[],answers:{},current:0,startedAt:null,endAt:null,timerHandle:null,submitted:false,adminTest:false};
