@@ -2,6 +2,24 @@
    Requires questions.js to define window.QUESTION_BANKS. */
 'use strict';
 
+/* ---------- fail loudly, not silently ---------- */
+
+function fatal(message){
+  var bar = document.getElementById('lcFatal');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'lcFatal';
+    bar.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#9b1c1c;color:#fff;' +
+      'padding:12px 16px;font:14px/1.5 Arial,Helvetica,sans-serif;white-space:pre-wrap';
+    (document.body || document.documentElement).appendChild(bar);
+  }
+  bar.textContent = 'CBT startup problem — report this line to the administrator:\n' + message;
+}
+
+window.addEventListener('error', function(e){
+  fatal((e.message || 'Unknown error') + '  [' + (e.filename || '?').split('/').pop() + ' line ' + (e.lineno || '?') + ']');
+});
+
 const RESULT_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwMIPzjkKrrsDqxQvXsmWY3jJYrBs4TjBikBKF9y_M5Sa0eyn8bIca_fghA3Xk-Zqlz/exec';
 const QUESTIONS_PER_TEST = 50;
 const TEST_MINUTES = 60;
@@ -13,7 +31,7 @@ let state = {
   name: '', email: '', code: '', role: '',
   questions: [], answers: {}, marked: {},
   current: 0, startedAt: null, endAt: null,
-  timerHandle: null, submitted: false, adminTest: false, storeKey: ''
+  timerHandle: null, saveHandle: null, submitted: false, adminTest: false, storeKey: ''
 };
 
 /* ---------- helpers ---------- */
@@ -65,7 +83,7 @@ function auditBank(bank){
 /* ---------- progress persistence (survives a refresh) ---------- */
 
 function saveProgress(){
-  if (state.adminTest || !state.storeKey || state.submitted) return;
+  if (state.adminTest || !state.storeKey || state.submitted || !state.startedAt) return;
   try {
     localStorage.setItem(state.storeKey, JSON.stringify({
       name: state.name, email: state.email, code: state.code, role: state.role,
@@ -105,74 +123,86 @@ function verifyCandidate(name, email, code, role){
 }
 
 function startTest(){
-  const name  = $('candidateName').value.trim();
-  const email = $('candidateEmail').value.trim().toLowerCase();
-  const code  = $('candidateCode').value.trim();
-  const role  = $('candidateRole').value;
+  try {
+    const name  = $('candidateName').value.trim();
+    const email = $('candidateEmail').value.trim().toLowerCase();
+    const code  = $('candidateCode').value.trim();
+    const role  = $('candidateRole').value;
 
-  state.adminTest = new URLSearchParams(location.search).get('adminTest') === '1'
-                 || sessionStorage.getItem('LC_ADMIN_TEST') === '1';
-  $('startError').className = 'error';
-  $('startError').textContent = '';
+    state.adminTest = new URLSearchParams(location.search).get('adminTest') === '1'
+                   || sessionStorage.getItem('LC_ADMIN_TEST') === '1';
+    $('startError').className = 'error';
+    $('startError').textContent = '';
 
-  if (!name || !email || !code || !role) { $('startError').textContent = 'Please complete all fields.'; return; }
-  if (!state.adminTest && !/^\d{6}$/.test(code)) { $('startError').textContent = 'Enter the 6-digit CBT access code supplied to you.'; return; }
+    if (!name || !email || !code || !role) { $('startError').textContent = 'Please complete all fields.'; return; }
+    if (!state.adminTest && !/^\d{6}$/.test(code)) { $('startError').textContent = 'Enter the 6-digit CBT access code supplied to you.'; return; }
 
-  const bank = window.QUESTION_BANKS && window.QUESTION_BANKS[bankKey(role)];
-  if (!bank || !bank.length) { $('startError').textContent = 'The question bank for this position is unavailable.'; return; }
+    if (!window.QUESTION_BANKS) {
+      $('startError').textContent = 'The question file did not load. Refresh the page; if it persists, contact the recruitment administrator.';
+      return;
+    }
+    const bank = window.QUESTION_BANKS[bankKey(role)];
+    if (!bank || !bank.length) { $('startError').textContent = 'The question bank for this position is unavailable.'; return; }
 
-  const bad = auditBank(bank);
-  if (bad.length) {
-    $('startError').textContent = 'The question bank for this position has ' + bad.length +
-      ' faulty question(s) (numbers ' + bad.slice(0, 5).join(', ') +
-      (bad.length > 5 ? '…' : '') + '). Contact the recruitment administrator.';
-    return;
-  }
-  if (bank.length < QUESTIONS_PER_TEST) {
-    $('startError').textContent = 'The question bank for this position holds only ' + bank.length +
-      ' questions; ' + QUESTIONS_PER_TEST + ' are required.';
-    return;
-  }
-
-  $('startBtn').disabled = true;
-  $('startError').textContent = 'Verifying candidate details...';
-
-  verifyCandidate(name, email, code, role).then(function(r){
-    if (!r || !r.success) {
-      $('startBtn').disabled = false;
-      $('startError').textContent = (r && r.error) || 'Candidate details could not be verified.';
+    const bad = auditBank(bank);
+    if (bad.length) {
+      $('startError').textContent = 'The question bank for this position has ' + bad.length +
+        ' faulty question(s) (numbers ' + bad.slice(0, 5).join(', ') +
+        (bad.length > 5 ? '…' : '') + '). Contact the recruitment administrator.';
+      return;
+    }
+    if (bank.length < QUESTIONS_PER_TEST) {
+      $('startError').textContent = 'The question bank for this position holds only ' + bank.length +
+        ' questions; ' + QUESTIONS_PER_TEST + ' are required.';
       return;
     }
 
-    state.name = name; state.email = email; state.code = code; state.role = role;
-    state.storeKey = STORE_PREFIX + code + '_' + bankKey(role);
-    state.submitted = false;
+    $('startBtn').disabled = true;
+    $('startError').textContent = 'Verifying candidate details...';
 
-    const saved = state.adminTest ? null : loadProgress(state.storeKey);
-    if (saved) {
-      state.questions = saved.questions;
-      state.answers   = saved.answers || {};
-      state.marked    = saved.marked  || {};
-      state.current   = saved.current || 0;
-      state.startedAt = new Date(saved.startedAt);
-      state.endAt     = new Date(saved.endAt);
-    } else {
-      state.questions = prepareQuestions(bank);
-      state.answers = {}; state.marked = {}; state.current = 0;
-      state.startedAt = new Date();
-      state.endAt = new Date(Date.now() + TEST_MINUTES * 60000);
-    }
+    verifyCandidate(name, email, code, role).then(function(r){
+      if (!r || !r.success) {
+        $('startBtn').disabled = false;
+        $('startError').textContent = (r && r.error) || 'Candidate details could not be verified.';
+        return;
+      }
 
-    $('startScreen').classList.add('hidden');
-    $('testScreen').classList.remove('hidden');
-    $('roleDisplay').textContent = role + (state.adminTest ? ' — administrator test mode' : '');
-    renderQuestion();
-    startTimer();
-    saveProgress();
-  }).catch(function(){
+      state.name = name; state.email = email; state.code = code; state.role = role;
+      state.storeKey = STORE_PREFIX + code + '_' + bankKey(role);
+      state.submitted = false;
+
+      const saved = state.adminTest ? null : loadProgress(state.storeKey);
+      if (saved) {
+        state.questions = saved.questions;
+        state.answers   = saved.answers || {};
+        state.marked    = saved.marked  || {};
+        state.current   = saved.current || 0;
+        state.startedAt = new Date(saved.startedAt);
+        state.endAt     = new Date(saved.endAt);
+      } else {
+        state.questions = prepareQuestions(bank);
+        state.answers = {}; state.marked = {}; state.current = 0;
+        state.startedAt = new Date();
+        state.endAt = new Date(Date.now() + TEST_MINUTES * 60000);
+      }
+
+      $('startScreen').classList.add('hidden');
+      $('testScreen').classList.remove('hidden');
+      $('roleDisplay').textContent = role + (state.adminTest ? ' — administrator test mode' : '');
+      renderQuestion();
+      startTimer();
+      saveProgress();
+      clearInterval(state.saveHandle);
+      state.saveHandle = setInterval(saveProgress, 15000);
+    }).catch(function(err){
+      $('startBtn').disabled = false;
+      $('startError').textContent = 'Unable to reach the CBT server. Check your internet connection and try again. (' +
+        (err && err.message ? err.message : 'no detail') + ')';
+    });
+  } catch (err) {
     $('startBtn').disabled = false;
-    $('startError').textContent = 'Unable to reach the CBT server. Check your internet connection and try again.';
-  });
+    fatal('startTest: ' + (err && err.message ? err.message : String(err)));
+  }
 }
 
 /* ---------- question rendering ---------- */
@@ -185,7 +215,6 @@ function renderQuestion(){
   const q = state.questions[state.current];
 
   $('questionNumber').textContent = 'Question ' + (state.current + 1) + ' of ' + state.questions.length;
-  $('progress').textContent = ' — ' + answeredCount() + ' of ' + state.questions.length + ' answered';
   $('questionText').textContent = q.question;
   $('options').innerHTML = '';
 
@@ -200,7 +229,7 @@ function renderQuestion(){
     radio.checked = state.answers[q.slot] === i;
     radio.addEventListener('change', function(){
       state.answers[q.slot] = i;      /* keyed by slot — ids cannot collide */
-      updateStatus();                 /* the mark is deliberately kept */
+      updateStatus();                 /* the review mark is deliberately kept */
       updatePalette();
       saveProgress();
     });
@@ -281,7 +310,7 @@ function startTimer(){
   state.timerHandle = setInterval(tick, 1000);
 }
 
-/* ---------- review panel (replaces confirm) ---------- */
+/* ---------- review panel (replaces the confirm dialogs) ---------- */
 
 function closeReview(){
   const o = document.getElementById('reviewOverlay');
@@ -299,7 +328,7 @@ function openReview(context){
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(10,20,30,.6);display:flex;align-items:center;justify-content:center;padding:18px;z-index:9999';
 
   const box = document.createElement('div');
-  box.style.cssText = 'background:#fff;border-radius:12px;padding:24px;max-width:560px;width:100%;max-height:88vh;overflow:auto;font-family:inherit;color:#17202a';
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:24px;max-width:560px;width:100%;max-height:88vh;overflow:auto;font:15px/1.5 Arial,Helvetica,sans-serif;color:#17202a';
 
   const h = document.createElement('h2');
   h.style.cssText = 'margin:0 0 10px';
@@ -307,7 +336,7 @@ function openReview(context){
   box.appendChild(h);
 
   const p = document.createElement('p');
-  p.style.cssText = 'margin:0 0 14px;line-height:1.5';
+  p.style.cssText = 'margin:0 0 14px';
   p.textContent = un.length
     ? 'You have answered ' + answeredCount() + ' of ' + state.questions.length + ' questions. ' +
       un.length + ' remain unanswered' + (mk.length ? ', and ' + mk.length + ' are marked for review' : '') +
@@ -328,7 +357,7 @@ function openReview(context){
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = q.slot + 1;
-      b.style.cssText = 'padding:7px 11px;border-radius:6px;border:1px solid #ccd3da;background:' +
+      b.style.cssText = 'padding:7px 11px;border-radius:6px;border:1px solid #ccd3da;font:inherit;background:' +
         (state.answers[q.slot] === undefined ? '#fdecec' : '#fff6e5') + ';cursor:pointer';
       b.addEventListener('click', function(){ closeReview(); state.current = q.slot; renderQuestion(); });
       list.appendChild(b);
@@ -337,7 +366,7 @@ function openReview(context){
   }
 
   const warn = document.createElement('p');
-  warn.style.cssText = 'margin:0 0 18px;padding:12px 14px;background:#fdecec;border-radius:8px;font-size:14px;line-height:1.5';
+  warn.style.cssText = 'margin:0 0 18px;padding:12px 14px;background:#fdecec;border-radius:8px;font-size:14px';
   warn.textContent = 'Once submitted you cannot return to the test or sit it again.';
   box.appendChild(warn);
 
@@ -356,7 +385,7 @@ function openReview(context){
   go.style.cssText = 'padding:12px 20px;border-radius:7px;border:1px solid #9b1c1c;background:#fff;color:#9b1c1c;cursor:pointer;font:inherit';
   go.addEventListener('click', function(){ closeReview(); submitTest(false); });
 
-  row.append(back, go);          /* Return is first, so it takes the focus */
+  row.append(back, go);          /* Return comes first, so it takes the focus */
   box.appendChild(row);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
@@ -372,6 +401,7 @@ function openReview(context){
 
 function showComplete(text){
   closeReview();
+  clearInterval(state.saveHandle);
   $('testScreen').classList.add('hidden');
   $('completeScreen').classList.remove('hidden');
   $('completionText').textContent = text;
@@ -415,7 +445,7 @@ function submitTest(auto, attempt){
   $('earlySubmitBtn').disabled = true;
   $('earlySubmitBtn').textContent = 'Submitting...';
 
-  /* mode:'cors' — the previous no-cors call reported success even when the
+  /* mode:'cors' — the earlier no-cors call reported success even when the
      server rejected the submission and nothing reached the sheet. */
   fetch(RESULT_ENDPOINT, {
     method: 'POST',
@@ -439,4 +469,29 @@ function submitTest(auto, attempt){
     alert('Your answers could not be submitted after three attempts.\n\n' +
           (err && err.message ? err.message : 'The server could not be reached.') + '\n\n' +
           'Your answers are saved on this device. Do not close this tab. Press Submit again, ' +
-          'or contact the recruitment
+          'or contact the recruitment administrator and quote access code ' + state.code + '.');
+  });
+}
+
+/* ---------- wiring ---------- */
+
+function wire(){
+  const needed = ['startBtn','nextBtn','prevBtn','markBtn','skipBtn','earlySubmitBtn',
+                  'candidateName','candidateEmail','candidateCode','candidateRole','startError',
+                  'startScreen','testScreen','completeScreen','completionText',
+                  'questionNumber','questionText','questionStatus','options','questionPalette',
+                  'progress','timer','roleDisplay'];
+  const missing = needed.filter(function(id){ return !document.getElementById(id); });
+  if (missing.length) { fatal('index.html is missing these elements: ' + missing.join(', ')); return; }
+
+  $('startBtn').addEventListener('click', startTest);
+  $('nextBtn').addEventListener('click', nextQuestion);
+  $('prevBtn').addEventListener('click', previousQuestion);
+  $('markBtn').addEventListener('click', toggleMark);
+  $('skipBtn').addEventListener('click', skipQuestion);
+  $('earlySubmitBtn').addEventListener('click', function(){ openReview('early'); });
+  $('candidateCode').addEventListener('keydown', function(e){ if (e.key === 'Enter') startTest(); });
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
+else wire();
